@@ -1,10 +1,26 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Image, Alert, TextInput } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Image, Alert, TextInput, Button } from 'react-native';
 import { icons } from '@/constants';
 import * as ImagePicker from 'expo-image-picker';
 import { useSearchParams } from 'expo-router/build/hooks';
 import { router } from 'expo-router';
 import CustomButton from '@/components/CustomButton';
+import { Audio } from 'expo-av';
+import axios from 'axios';
+
+interface RecordingLine {
+  sound: Audio.Sound;
+  duration: string;
+  file: string;
+}
+
+interface PaytmResponse {
+  status: string;
+  paymentId?: string;
+  error?: string;
+}
+
+const BACKEND_URL = 'http://192.168.1.2:8000/';
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
@@ -14,14 +30,184 @@ export default function BookingPage() {
 
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [description, setDescription] = useState<string>('');
+  const [recording, setRecording] = useState<Audio.Recording | undefined>();
+  const [recordings, setRecordings] = useState<RecordingLine[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handlePaymentSuccess = () => {
-    saveBookingToDatabase({
-      options,
-      totalAmount: Number(totalAmount),
-    });
-    router.push('/(root)/(tabs)/orders');
+  const initiatePayment = async () => {
+    setIsLoading(true);
+    try {
+      const csrfToken = await fetchCsrfToken();
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      };
+      // Step 1: Get payment token from your backend
+      const orderData = {
+        amount: totalAmount,
+        callbackUrl: `${BACKEND_URL}/api/payment/callback/`
+      };
+
+      const response = await axios.post(`${BACKEND_URL}/api/payment/initiate/`, orderData);
+      const { orderId, txnToken } = response.data;
+
+      // Step 2: Start Paytm payment
+      const paytmResponse = await startPaytmPayment(orderId, txnToken);
+      
+      if (paytmResponse.status === "SUCCESS") {
+        await handlePaymentSuccess(paytmResponse.paymentId, orderId);
+      } else {
+        Alert.alert("Payment Failed", "Please try again later");
+      }
+    } catch (error) {
+      console.error('Payment initiation failed:', error);
+      Alert.alert("Error", "Payment initiation failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }; 
+  const fetchCsrfToken = async () => {
+    try {
+      const response = await axios.get(`${BACKEND_URL}/get-csrf-token/`, {
+        withCredentials: true, // Ensures cookies are sent and received
+      });
+      console.log('CSRF token fetched successfully');
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+    }
   };
+  
+
+  const startPaytmPayment = async (orderId: string, txnToken: string): Promise<PaytmResponse> => {
+    return new Promise((resolve) => {
+      const data = {
+        'MID': 'oBCEWK70663331405894',
+        'ORDER_ID': orderId,
+        'TXN_TOKEN': txnToken,
+        'TXN_AMOUNT': totalAmount,
+        'CALLBACK_URL': `${BACKEND_URL}/api/payment/callback/`,
+        'WEBSITE': 'WEBSTAGING',
+        'INDUSTRY_TYPE_ID': 'Retail',
+      };
+
+      // Initialize Paytm payment
+      window.Paytm.initializePayment(data, (response: any) => {
+        if (response.STATUS === "TXN_SUCCESS") {
+          resolve({
+            status: "SUCCESS",
+            paymentId: response.TXNID
+          });
+        } else {
+          resolve({
+            status: "FAILED",
+            error: response.RESPMSG
+          });
+        }
+      });
+    });
+  };
+
+  const handlePaymentSuccess = async (paymentId: string, orderId: string) => {
+    try {
+      // Convert voice recordings to base64 if needed
+      const voiceMessages = recordings.map(rec => rec.file);
+      
+      // Convert images to base64 if needed
+      const referenceImages = imageUris;
+
+      // Create order in backend
+      const orderData = {
+        order_id: orderId,
+        checked_option: options[0], // Assuming first option is primary
+        total_amount: totalAmount,
+        reference_images: referenceImages,
+        description: description,
+        voice_messages: voiceMessages,
+        order_status: 1,
+        preview_image: null,
+        delivery_date: new Date().toISOString,
+        payment_id: paymentId,
+      };
+
+      await axios.post(`${BACKEND_URL}/api/orders/`, orderData);
+      
+      // Navigate to orders page
+      router.push('/(root)/(tabs)/orders');
+      
+      Alert.alert("Success", "Your order has been placed successfully!");
+    } catch (error) {
+      console.error('Order creation failed:', error);
+      Alert.alert("Error", "Failed to create order. Please contact support.");
+    }
+  };
+  
+  async function startRecording() {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (perm.status === "granted") {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true
+        });
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        setRecording(recording);
+      }
+    }  catch (err) {
+      console.error('Failed to start recording', err);
+    }
+  }
+  async function stopRecording() {
+    if (!recording) return;
+
+    try {
+      await recording.stopAndUnloadAsync();
+      const { sound, status } = await recording.createNewLoadedSoundAsync();
+
+      const duration = status.isLoaded ? getDurationFormatted(status.durationMillis) : '0:00';
+      
+      setRecordings(currentRecordings => [...currentRecordings, {
+        sound: sound,
+        duration: duration,
+        file: recording.getURI() || ''
+      }]);
+      
+      setRecording(undefined);
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+    }
+  }
+
+  function getDurationFormatted(milliseconds: number): string {
+    const minutes = milliseconds / 1000 / 60;
+    const seconds = Math.round((minutes - Math.floor(minutes)) * 60);
+    return seconds < 10 ? `${Math.floor(minutes)}:0${seconds}` : `${Math.floor(minutes)}:${seconds}`;
+  }
+
+  function getRecordingLines() {
+    return recordings.map((recordingLine, index) => {
+      return (
+        <View key={index} style={styles.row}>
+          <Text style={styles.recordingText}>
+            Recording #{index + 1} | {recordingLine.duration}
+          </Text>
+          <Pressable 
+            style={styles.playButton}
+            onPress={() => recordingLine.sound.replayAsync()}
+          >
+            <Text style={styles.buttonText}>Play</Text>
+          </Pressable>
+        </View>
+      );
+    });
+  }
+
+  function clearRecordings() {
+    setRecordings([])
+  }
+
+
 
   const saveBookingToDatabase = (bookingDetails: { options: string[]; totalAmount: number }) => {
     // Save booking details to Neon Postgres DB
@@ -105,14 +291,92 @@ export default function BookingPage() {
           placeholderTextColor="#E2E8F0"
           multiline
         />
-        <CustomButton title="Proceed to Pay" onPress={handlePaymentSuccess} className="mt-6 bg-secondary-200" />
+        
       </View>
+      <View style={styles.container}>
+      <Pressable 
+        style={styles.recordButton} 
+        onPress={recording ? stopRecording : startRecording}
+      >
+        <Text style={styles.buttonText}>
+          {recording ? 'Stop Recording' : 'Start Recording'}
+        </Text>
+      </Pressable>
+      {getRecordingLines()}
+      {recordings.length > 0 && (
+        <Pressable 
+          style={styles.clearButton}
+          onPress={clearRecordings}
+        >
+          <Text style={styles.buttonText}>Clear Recordings</Text>
+        </Pressable>
+      )}
+      <View style={styles.container}>
+        <CustomButton 
+          title={isLoading ? "Processing..." : "Proceed to Pay"} 
+          onPress={initiatePayment} 
+          disabled={isLoading}
+          className="mt-6 bg-secondary-200" 
+        />
+      </View>
+    </View>
+
+      
 
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+    margin: 16,
+  },
+  recordingText: {
+    flex: 1,
+    margin: 16,
+    color: '#FFFFFF', // White text for recording info
+  },
+  recordButton: {
+    backgroundColor: '#FFD700', // Yellow color
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25, // Rounded edges
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+    elevation: 3, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  playButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButton: {
+    backgroundColor: '#FFD700',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

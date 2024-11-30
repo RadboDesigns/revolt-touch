@@ -1,4 +1,4 @@
-import { Redirect } from "expo-router";
+import { Redirect, Slot } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 
 

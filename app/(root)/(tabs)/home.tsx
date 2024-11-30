@@ -1,11 +1,12 @@
 import { icons } from '@/constants';
 import { SafeAreaView, Text, View, Image, FlatList, TouchableOpacity } from 'react-native';
-import React, { useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from "@clerk/clerk-expo";
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { ImageSourcePropType } from 'react-native';
 import { fetchAPI } from '@/lib/fetch';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Type definitions
 interface Banner {
@@ -66,7 +67,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ user }) => (
   <View className="flex flex-row justify-between items-center px-5 mt-10">
     <View>
       <Text className="text-left text-3xl font-pregular text-white-100">
-        Hi, <Text className="text-secondary-200">{user?.firstName || 'User'}</Text>
+        Hi, <Text className="text-secondary-200">{user?.username || 'User'}</Text>
       </Text>
       <Text className="text-left text-sm font-pregular text-white-200">
         Ready to elevate your brand? Let's get started!
@@ -78,6 +79,8 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({ user }) => (
     />
   </View>
 );
+
+
 
 interface SectionTitleProps {
   title: string;
@@ -91,20 +94,26 @@ const SectionTitle: React.FC<SectionTitleProps> = ({ title }) => (
 );
 
 export default function Page() {
-  const { user } = useUser();
+  //const { user } = useUser();
   const router = useRouter();
-  const bannerListRef = useRef<FlatList<Banner>>(null);
+  const [user, setUser] = useState<any>(null);
   
 
   useEffect(() => {
-    let currentIndex = 0;
-    const interval = setInterval(() => {
-      currentIndex = (currentIndex + 1) % banners.length;
-      bannerListRef.current?.scrollToIndex({ index: currentIndex, animated: true });
-    }, 6000);
-
-    return () => clearInterval(interval);
+    const fetchUser = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Failed to fetch user data:', error);
+      }
+    };
+  
+    fetchUser();
   }, []);
+  
 
   const handleServicePress = (route: string) => {
     router.push(route as any);
@@ -121,11 +130,11 @@ export default function Page() {
           className="absolute top-0 left-0 w-full h-full object-cover"
           blurRadius={2}
         />
-        <View className="flex-row justify-between items-center px-4 h-full">
+        <View className="flex-row justify-between items-center px-4 h-full overflow-visible">
           <Text className="text-white-200 font-psemibold text-sm text-left">
             {item.text}
           </Text>
-          <Image source={item.icon} className="w-8 h-8" />
+          <Image source={item.icon} className="w-8 h-8 "  resizeMode="contain" />
         </View>
       </BlurView>
     </TouchableOpacity>
@@ -136,8 +145,8 @@ export default function Page() {
       onPress={() => router.push(item.route as any)}
       className="flex-1 items-center justify-center p-2"
     >
-      <View className="bg-primary-300 rounded-full p-3">
-        <Image source={item.icon} className="w-10 h-10 rounded-full" />
+      <View className="bg-primary-300 rounded-full p-5 overflow-visible">
+        <Image source={item.icon} className="w-8 h-8 "/>
       </View>
       <Text className="text-white-200 font-pregular mt-2 text-sm">{item.name}</Text>
     </TouchableOpacity>
@@ -164,7 +173,6 @@ export default function Page() {
             {/* Banner Scroller */}
             <View className="mt-10 bg-black">
               <FlatList
-                ref={bannerListRef}
                 data={banners}
                 horizontal
                 pagingEnabled
@@ -178,7 +186,7 @@ export default function Page() {
                 keyExtractor={(item) => item.id.toString()}
               />
             </View>
-  
+        
             {/* Services Section Title */}
             <View className="mt-10">
               <SectionTitle title="Our Services" />

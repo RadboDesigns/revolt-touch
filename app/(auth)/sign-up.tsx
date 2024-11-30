@@ -6,7 +6,6 @@ import { ReactNativeModal } from "react-native-modal";
 
 import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
-import OAuth from "@/components/OAuth";
 import { icons, images } from "@/constants";
 import { fetchAPI } from "@/lib/fetch";
 
@@ -15,7 +14,8 @@ const SignUp = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const [form, setForm] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
     password: "",
   });
@@ -27,21 +27,44 @@ const SignUp = () => {
 
   const onSignUpPress = async () => {
     if (!isLoaded) return;
+  
     try {
+      // Create user with Clerk
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
       });
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+  
+      // Send data to the Django backend
+      const response = await fetch("http://192.168.1.2:8000/api/register/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          first_name: form.first_name,
+          last_name: form.last_name,
+          email: form.email,
+          password: form.password,
+        }),
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to register client");
+      }
+  
       setVerification({
         ...verification,
         state: "pending",
       });
+  
+      Alert.alert("Success", "Registration initiated. Verify your email!");
     } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.log(JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
+      console.log(err.message);
+      Alert.alert("Error", err.message || "An error occurred during sign-up.");
     }
   };
   const onPressVerify = async () => {
@@ -54,7 +77,8 @@ const SignUp = () => {
         await fetchAPI("/(api)/user", {
           method: "POST",
           body: JSON.stringify({
-            name: form.name,
+            first_name: form.first_name,
+            last_name: form.last_name,
             email: form.email,
             clerkId: completeSignUp.createdUserId,
           }),
@@ -90,12 +114,19 @@ const SignUp = () => {
           <Text className='text-2xl text-white-100 mt-20 text-center'>Sign Up</Text>
         </View>
         <View className="p-5">
-          <InputField
-            label="Name"
+        <InputField
+            label="First Name"
             placeholder="Enter name"
             icon={icons.person}
-            value={form.name}
-            onChangeText={(value: string) => setForm({ ...form, name: value })}
+            value={form.first_name}
+            onChangeText={(value: string) => setForm({ ...form, first_name: value })}
+          />
+          <InputField
+            label="Last Name"
+            placeholder="Enter name"
+            icon={icons.person}
+            value={form.last_name}
+            onChangeText={(value: string) => setForm({ ...form, last_name: value })}
           />
           <InputField
             label="Email"

@@ -6,6 +6,7 @@ import { icons } from "@/constants";
 import InputField from "@/components/InputField";
 import CustomButton from "@/components/CustomButton";
 import { useSignIn } from "@clerk/clerk-expo";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SignIn = () => {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -18,26 +19,50 @@ const SignIn = () => {
 
   const onSignInPress = useCallback(async () => {
     if (!isLoaded) return;
-
+  
     try {
       const signInAttempt = await signIn.create({
         identifier: form.email,
         password: form.password,
       });
-
+  
       if (signInAttempt.status === "complete") {
         await setActive({ session: signInAttempt.createdSessionId });
-        router.replace("/(root)/(tabs)/home");
+  
+        // Send the email to the backend to fetch user details
+        const response = await fetch("http://192.168.1.2:8000/api/sign_in/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: form.email, // Send the email to the backend
+          }),
+        });
+  
+        const data = await response.json();
+  
+        if (response.ok) {
+          // Store user details (name and email)
+          await AsyncStorage.setItem("user", JSON.stringify(data));
+  
+          // Navigate to the home screen
+          router.replace("/(root)/(tabs)/home");
+        } else {
+          Alert.alert("Error", data.detail || "Sign-in failed.");
+        }
       } else {
-        console.log(JSON.stringify(signInAttempt, null, 2));
         Alert.alert("Error", "Log in failed. Please try again.");
       }
     } catch (err: any) {
-      console.log(JSON.stringify(err, null, 2));
-      Alert.alert("Error", err.errors[0].longMessage);
+      console.error(err);
+      Alert.alert("Error", err.errors?.[0]?.longMessage || "Something went wrong.");
     }
   }, [isLoaded, form]);
+  
 
+  
+  
   return (
     <SafeAreaView className="flex-1 bg-black">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="flex-1 bg-black">

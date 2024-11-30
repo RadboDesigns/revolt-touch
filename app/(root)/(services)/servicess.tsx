@@ -21,7 +21,7 @@ function MyCheckbox({ onChange, checked }: { onChange: () => void; checked: bool
     <Pressable
       style={[styles.checkboxBase, checked && styles.checkboxChecked]}
       onPress={onChange}>
-      {checked && <Ionicons name="checkmark" size={18} color="white" />}
+      {checked && <Ionicons name="checkmark" size={18} color="black" />}
     </Pressable>
   );
 }
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: '#E2E8F0', // secondary-200
+    backgroundColor: '#FFCE07', // secondary-200
   },
   designBox: {
     width: 100,
