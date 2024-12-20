@@ -18,7 +18,9 @@ const SignUp = () => {
     last_name: "",
     email: "",
     password: "",
+    phone_number: "", // Added phone number to form state
   });
+  
   const [verification, setVerification] = useState({
     state: "default",
     error: "",
@@ -47,6 +49,7 @@ const SignUp = () => {
           last_name: form.last_name,
           email: form.email,
           password: form.password,
+          phone_number: form.phone_number, // Added phone number to backend request
         }),
       });
   
@@ -67,6 +70,7 @@ const SignUp = () => {
       Alert.alert("Error", err.message || "An error occurred during sign-up.");
     }
   };
+
   const onPressVerify = async () => {
     if (!isLoaded) return;
     try {
@@ -80,6 +84,7 @@ const SignUp = () => {
             first_name: form.first_name,
             last_name: form.last_name,
             email: form.email,
+            phone_number: form.phone_number, // Added phone number to API request
             clerkId: completeSignUp.createdUserId,
           }),
         });
@@ -96,8 +101,6 @@ const SignUp = () => {
         });
       }
     } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       setVerification({
         ...verification,
         error: err.errors[0].longMessage,
@@ -105,6 +108,7 @@ const SignUp = () => {
       });
     }
   };
+
   return (
     <ScrollView className="flex-1 bg-black">
       <View className="flex-1 bg-white">
@@ -114,7 +118,7 @@ const SignUp = () => {
           <Text className='text-2xl text-white-100 mt-20 text-center'>Sign Up</Text>
         </View>
         <View className="p-5">
-        <InputField
+          <InputField
             label="First Name"
             placeholder="Enter name"
             icon={icons.person}
@@ -137,11 +141,21 @@ const SignUp = () => {
             onChangeText={(value: string) => setForm({ ...form, email: value })}
           />
           <InputField
+            label="Phone Number"
+            placeholder="Enter phone number"
+            icon={icons.email} // Assuming you have a phone icon in your icons
+            textContentType="telephoneNumber"
+            keyboardType="phone-pad"
+            value={form.phone_number}
+            onChangeText={(value: string) => setForm({ ...form, phone_number: value })}
+          />
+          <InputField
             label="Password"
             placeholder="Enter password"
             icon={icons.lock}
             secureTextEntry={true}
             textContentType="password"
+            
             value={form.password}
             onChangeText={(value: string) => setForm({ ...form, password: value })}
           />
@@ -158,48 +172,51 @@ const SignUp = () => {
             <Text className="text-secondary-200">Log In</Text>
           </Link>
         </View>
-        <ReactNativeModal
-  isVisible={verification.state === "pending"}
-  backdropColor="black"
-  backdropOpacity={0.7} // Adds a dark transparent background
-  onBackdropPress={() => setVerification({ ...verification, state: "default" })} // Optional: Close on backdrop press
-  onModalHide={() => {
-    if (verification.state === "success") {
-      setShowSuccessModal(true);
-    }
-  }}
->
-  <View className="bg-white-300 px-7 py-9 rounded-2xl min-h-[300px]">
-    <Text className="font-pregular text-secondary-200 text-2xl mb-2">
-      Verification
-    </Text>
-    <Text className="font-pregular mb-5">
-      We've sent a verification code to {form.email}.
-    </Text>
-    <InputField
-      label={"Code"}
-      icon={icons.lock}
-      placeholder={"12345"}
-      value={verification.code}
-      keyboardType="numeric"
-      onChangeText={(code: string) =>
-        setVerification({ ...verification, code })
-      }
-    />
-    {verification.error && (
-      <Text className="text-red-500 text-sm mt-1">
-        {verification.error}
-      </Text>
-    )}
-    <CustomButton
-      title="Verify Email"
-      onPress={onPressVerify}
-      className="mt-5 bg-success-500"
-    />
-  </View>
-</ReactNativeModal>
 
-        <ReactNativeModal isVisible={showSuccessModal}>
+        <ReactNativeModal
+          isVisible={verification.state === "pending"}
+          backdropColor="black"
+          backdropOpacity={0.7}
+          onBackdropPress={() => setVerification({ ...verification, state: "default" })}
+          onModalHide={() => {
+            if (verification.state === "success") {
+              setShowSuccessModal(true);
+            }
+          }}
+          children={
+          <View className="bg-white-300 px-7 py-9 rounded-2xl min-h-[300px]">
+            <Text className="font-pregular text-secondary-200 text-2xl mb-2">
+              Verification
+            </Text>
+            <Text className="font-pregular mb-5">
+              We've sent a verification code to {form.email}.
+            </Text>
+            <InputField
+              label={"Code"}
+              icon={icons.lock}
+              placeholder={"12345"}
+              value={verification.code}
+              keyboardType="numeric"
+              onChangeText={(code: string) =>
+                setVerification({ ...verification, code })
+              }
+            />
+            {verification.error && (
+              <Text className="text-red-500 text-sm mt-1">
+                {verification.error}
+              </Text>
+            )}
+            <CustomButton
+              title="Verify Email"
+              onPress={onPressVerify}
+              className="mt-5 bg-success-500"
+            />
+          </View>}
+        />
+
+        <ReactNativeModal 
+          isVisible={showSuccessModal}
+          children={
           <View className="bg-white-300 px-7 py-9 rounded-2xl min-h-[300px]">
             <Image
               source={images.check}
@@ -213,17 +230,17 @@ const SignUp = () => {
             </Text>
             <CustomButton
               title="Browse Home"
-              
               onPress={() => {
                 setShowSuccessModal(false);
                 router.push(`/(root)/(tabs)/home`);
               }}
               className="mt-5"
             />
-          </View>
-        </ReactNativeModal>
+          </View>}
+        />
       </View>
     </ScrollView>
   );
 };
+
 export default SignUp;
