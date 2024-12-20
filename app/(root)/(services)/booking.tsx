@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, Pressable, StyleSheet, Image, Alert, TextInput, Button } from 'react-native';
+import { ScrollView, View, Text, Pressable, StyleSheet, Image, Alert, TextInput } from 'react-native';
 import { icons } from '@/constants';
 import * as ImagePicker from 'expo-image-picker';
 import { useSearchParams } from 'expo-router/build/hooks';
@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import CustomButton from '@/components/CustomButton';
 import { Audio } from 'expo-av';
 import axios from 'axios';
+import RazorpayCheckout from 'react-native-razorpay';
 
 interface RecordingLine {
   sound: Audio.Sound;
@@ -14,19 +15,19 @@ interface RecordingLine {
   file: string;
 }
 
-interface PaytmResponse {
-  status: string;
-  paymentId?: string;
-  error?: string;
-}
-
 const BACKEND_URL = 'http://192.168.1.2:8000/';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
-  const totalAmount = searchParams.get('totalAmount') || '0'; // Get 'totalAmount' from URL
-  const selectedOptions = searchParams.get('selectedOptions') || '[]'; // Get 'selectedOptions' from URL
-  const options: string[] = JSON.parse(selectedOptions); // Parse selected options
+  const totalAmount = searchParams.get('totalAmount') || '0';
+  const selectedOptions = searchParams.get('selectedOptions') || '[]';
+  const options: string[] = JSON.parse(selectedOptions);
 
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [description, setDescription] = useState<string>('');
@@ -37,110 +38,45 @@ export default function BookingPage() {
   const initiatePayment = async () => {
     setIsLoading(true);
     try {
-      const csrfToken = await fetchCsrfToken();
-      const headers = {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': csrfToken,
-      };
-      // Step 1: Get payment token from your backend
-      const orderData = {
-        amount: totalAmount,
-        callbackUrl: `${BACKEND_URL}/api/payment/callback/`
-      };
-
-      const response = await axios.post(`${BACKEND_URL}/api/payment/initiate/`, orderData);
-      const { orderId, txnToken } = response.data;
-
-      // Step 2: Start Paytm payment
-      const paytmResponse = await startPaytmPayment(orderId, txnToken);
-      
-      if (paytmResponse.status === "SUCCESS") {
-        await handlePaymentSuccess(paytmResponse.paymentId, orderId);
-      } else {
-        Alert.alert("Payment Failed", "Please try again later");
-      }
-    } catch (error) {
-      console.error('Payment initiation failed:', error);
-      Alert.alert("Error", "Payment initiation failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  }; 
-  const fetchCsrfToken = async () => {
-    try {
-      const response = await axios.get(`${BACKEND_URL}/get-csrf-token/`, {
-        withCredentials: true, // Ensures cookies are sent and received
+      // Create order
+      const orderResponse = await axios.post(`${BACKEND_URL}api/order/create/`, {
+        amount: parseInt(totalAmount) * 100, // Convert to paise
+        currency: 'INR'
       });
-      console.log('CSRF token fetched successfully');
-    } catch (error) {
-      console.error('Failed to fetch CSRF token:', error);
-    }
-  };
-  
 
-  const startPaytmPayment = async (orderId: string, txnToken: string): Promise<PaytmResponse> => {
-    return new Promise((resolve) => {
-      const data = {
-        'MID': 'oBCEWK70663331405894',
-        'ORDER_ID': orderId,
-        'TXN_TOKEN': txnToken,
-        'TXN_AMOUNT': totalAmount,
-        'CALLBACK_URL': `${BACKEND_URL}/api/payment/callback/`,
-        'WEBSITE': 'WEBSTAGING',
-        'INDUSTRY_TYPE_ID': 'Retail',
+      if (!orderResponse.data || !orderResponse.data.error || !orderResponse.data.error.id) {
+        Alert.alert('Error', 'Order ID not generated');
+        return;
+    }
+    
+
+      const options = {
+        description: 'Credits towards consultation',
+            image: 'https://i.imgur.com/3g7nmJC.png',
+            currency: 'INR',
+            key: 'rzp_test_6DPEFbutV2mNls', // Your api key
+            order_id: orderResponse.data.error.id,
+            amount: parseInt(totalAmount) * 100 ,
+            name: 'Radbo Designs',
+            prefill: {
+              email: 'void@razorpay.com',
+              contact: '9191919191',
+              name: 'Radbo'
+            },
+            theme: {color: '#F37254'}
+          }
+          RazorpayCheckout.open(options).then((data) => {
+            // handle success
+            alert(`Success: ${data.razorpay_payment_id}`);
+          }).catch((error) => {
+            // handle failure
+            alert(`Error: ${error.code} | ${error.description}`);
+          });
+        }}
       };
 
-      // Initialize Paytm payment
-      window.Paytm.initializePayment(data, (response: any) => {
-        if (response.STATUS === "TXN_SUCCESS") {
-          resolve({
-            status: "SUCCESS",
-            paymentId: response.TXNID
-          });
-        } else {
-          resolve({
-            status: "FAILED",
-            error: response.RESPMSG
-          });
-        }
-      });
-    });
-  };
 
-  const handlePaymentSuccess = async (paymentId: string, orderId: string) => {
-    try {
-      // Convert voice recordings to base64 if needed
-      const voiceMessages = recordings.map(rec => rec.file);
-      
-      // Convert images to base64 if needed
-      const referenceImages = imageUris;
-
-      // Create order in backend
-      const orderData = {
-        order_id: orderId,
-        checked_option: options[0], // Assuming first option is primary
-        total_amount: totalAmount,
-        reference_images: referenceImages,
-        description: description,
-        voice_messages: voiceMessages,
-        order_status: 1,
-        preview_image: null,
-        delivery_date: new Date().toISOString,
-        payment_id: paymentId,
-      };
-
-      await axios.post(`${BACKEND_URL}/api/orders/`, orderData);
-      
-      // Navigate to orders page
-      router.push('/(root)/(tabs)/orders');
-      
-      Alert.alert("Success", "Your order has been placed successfully!");
-    } catch (error) {
-      console.error('Order creation failed:', error);
-      Alert.alert("Error", "Failed to create order. Please contact support.");
-    }
-  };
-  
+  // Recording functions remain the same
   async function startRecording() {
     try {
       const perm = await Audio.requestPermissionsAsync();
@@ -154,17 +90,18 @@ export default function BookingPage() {
         );
         setRecording(recording);
       }
-    }  catch (err) {
+    } catch (err) {
       console.error('Failed to start recording', err);
     }
   }
+
   async function stopRecording() {
     if (!recording) return;
 
     try {
       await recording.stopAndUnloadAsync();
       const { sound, status } = await recording.createNewLoadedSoundAsync();
-
+      
       const duration = status.isLoaded ? getDurationFormatted(status.durationMillis) : '0:00';
       
       setRecordings(currentRecordings => [...currentRecordings, {
@@ -313,19 +250,19 @@ export default function BookingPage() {
       )}
       <View style={styles.container}>
         <CustomButton 
-          title={isLoading ? "Processing..." : "Proceed to Pay"} 
+          title={isLoading ? "Processing..." : "Pay with Razorpay"} 
           onPress={initiatePayment} 
           disabled={isLoading}
           className="mt-6 bg-secondary-200" 
         />
       </View>
-    </View>
+      </View>
 
       
 
     </ScrollView>
   );
-}
+      }
 
 const styles = StyleSheet.create({
   fill: {

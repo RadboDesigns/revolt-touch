@@ -1,53 +1,65 @@
 import { useUser } from "@clerk/clerk-expo";
 import { Image, ScrollView, Text, View, TouchableOpacity, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState } from "react";
-
+import { useState, useEffect } from "react";
 import InputField from "@/components/InputField";
 
 const Profile = () => {
   const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [profileData, setProfileData] = useState({
-    username: user?.username || "",
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
+    username: "",
+    first_name: "",
+    last_name: "",
     email: user?.primaryEmailAddress?.emailAddress || "",
+    phone: "",
   });
 
-  const handleInputChange = (key, value) => {
-    setProfileData({ ...profileData, [key]: value });
-  };
+  const fetchUserDetails = async () => {
+    if (!profileData.email) return;
 
-  const saveProfileUpdates = async () => {
+    setIsLoading(true);
     try {
-      const response = await fetch("http://192.168.1.2:8000/api/update_profile/", {
-        method: "PUT",
+      const response = await fetch('http://192.168.1.2:8000/api/profile/', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(profileData),
+        body: JSON.stringify({
+          email: profileData.email,
+        }),
       });
 
       const data = await response.json();
-      if (response.ok) {
-        Alert.alert("Success", "Profile updated successfully.");
-        setIsEditing(false);
-      } else {
-        Alert.alert("Error", data.error || "Failed to update profile.");
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch user details');
       }
+
+      setProfileData(prevData => ({
+        ...prevData,
+        ...data,
+      }));
     } catch (error) {
-      console.error("Error updating profile:", error);
-      Alert.alert("Error", "An unexpected error occurred.");
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to fetch user details'
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchUserDetails();
+  }, []);
 
   return (
     <SafeAreaView className="flex-1 bg-black">
       <ScrollView className="px-5" contentContainerStyle={{ paddingBottom: 120 }}>
         <Text className="text-2xl font-pregular text-white-100 my-5">My profile</Text>
 
-        
         <View className="flex items-center justify-center my-5">
           <Image
             source={{ uri: user?.imageUrl }}
@@ -57,37 +69,33 @@ const Profile = () => {
         </View>
 
         <View className="flex flex-col bg-primary-100 rounded-lg px-5 py-3">
-        <InputField
-            label="User Name"
-            value={profileData.username}
-            onChangeText={(value) => handleInputChange("username", value)}
-            editable={isEditing}
-          />
-          <InputField
-            label="First Name"
-            value={profileData.firstName}
-            onChangeText={(value) => handleInputChange("firstName", value)}
-            editable={isEditing}
-          />
-          <InputField
-            label="Last Name"
-            value={profileData.lastName}
-            onChangeText={(value) => handleInputChange("lastName", value)}
-            editable={isEditing}
-          />
-          <InputField
-            label="Email"
-            value={profileData.email}
-            onChangeText={(value) => handleInputChange("email", value)}
-            editable={isEditing}
-          />
+          {isLoading ? (
+            <Text className="text-white-100">Loading...</Text>
+          ) : (
+            <>
+              <InputField
+                label="First Name"
+                value={profileData.first_name}
+                editable={isEditing}
+              />
+              <InputField
+                label="Last Name"
+                value={profileData.last_name}
+                editable={isEditing}
+              />
+              <InputField
+                label="Phone Number"
+                value={profileData.phone}
+                editable={isEditing}
+              />
+              <InputField
+                label="Email"
+                value={profileData.email}
+                editable={false}
+              />
+            </>
+          )}
         </View>
-
-        <TouchableOpacity onPress={isEditing ? saveProfileUpdates : () => setIsEditing(true)}>
-          <Text className="text-lg text-center text-secondary-200 mt-5">
-            {isEditing ? "Save" : "Edit"}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

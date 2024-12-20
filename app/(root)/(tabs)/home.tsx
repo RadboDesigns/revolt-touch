@@ -1,12 +1,10 @@
 import { icons } from '@/constants';
-import { SafeAreaView, Text, View, Image, FlatList, TouchableOpacity } from 'react-native';
+import { SafeAreaView, Text, View, Image, FlatList, TouchableOpacity, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useUser } from "@clerk/clerk-expo";
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { ImageSourcePropType } from 'react-native';
-import { fetchAPI } from '@/lib/fetch';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Type definitions
 interface Banner {
@@ -56,31 +54,6 @@ const designs: Design[] = [
   { id: 6, name: 'Invitation ', icon: icons.invitation, route: "(designs)/invitation" },
 ];
 
-interface HeaderSectionProps {
-  user: any; 
-}
-
-
-
-
-const HeaderSection: React.FC<HeaderSectionProps> = ({ user }) => (
-  <View className="flex flex-row justify-between items-center px-5 mt-10">
-    <View>
-      <Text className="text-left text-3xl font-pregular text-white-100">
-        Hi, <Text className="text-secondary-200">{user?.username || 'User'}</Text>
-      </Text>
-      <Text className="text-left text-sm font-pregular text-white-200">
-        Ready to elevate your brand? Let's get started!
-      </Text>
-    </View>
-    <Image
-      source={icons.person}
-      className="h-12 w-12 border-2 border-primary-100 rounded-full"
-    />
-  </View>
-);
-
-
 
 interface SectionTitleProps {
   title: string;
@@ -94,25 +67,74 @@ const SectionTitle: React.FC<SectionTitleProps> = ({ title }) => (
 );
 
 export default function Page() {
-  //const { user } = useUser();
+  const { user } = useUser();
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [profileData, setProfileData] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    email: user?.primaryEmailAddress?.emailAddress || "",
+    phone: "",
+  });
+
+  const fetchUserDetails = async () => {
+    if (!profileData.email) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://192.168.1.2:8000/api/profile/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: profileData.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch user details');
+      }
+
+      setProfileData(prevData => ({
+        ...prevData,
+        ...data,
+      }));
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to fetch user details'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const storedUser = await AsyncStorage.getItem('user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } catch (error) {
-        console.error('Failed to fetch user data:', error);
-      }
-    };
-  
-    fetchUser();
+    fetchUserDetails();
   }, []);
+
+  
+const HeaderSection: React.FC = () => (
+  <View className="flex flex-row justify-between items-center px-5 mt-10">
+    <View>
+      <Text className="text-left text-3xl font-pregular text-white-100">
+        Hi, <Text className="text-secondary-200">{profileData.username || 'User'}</Text>
+      </Text>
+      <Text className="text-left text-sm font-pregular text-white-200">
+        Ready to elevate your brand? Let's get started!
+      </Text>
+    </View>
+    <Image
+      source={user?.imageUrl ? { uri: user.imageUrl } : icons.person}
+      className="h-12 w-12 border-2 border-primary-100 rounded-full"
+    />
+  </View>
+);
   
 
   const handleServicePress = (route: string) => {
