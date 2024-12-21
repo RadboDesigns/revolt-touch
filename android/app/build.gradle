@@ -86,7 +86,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.revolttouch"
+    namespace 'com.thiyalan.revolttouch'
     defaultConfig {
         applicationId 'com.thiyalan.revolttouch'
         minSdkVersion rootProject.ext.minSdkVersion
@@ -149,7 +149,6 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation 'com.razorpay:checkout:1.6.40'
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
