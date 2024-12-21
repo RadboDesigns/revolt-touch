@@ -1,12 +1,11 @@
 import { useUser } from "@clerk/clerk-expo";
-import { Image, ScrollView, Text, View, TouchableOpacity, Alert } from "react-native";
+import { Image, ScrollView, Text, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect } from "react";
 import InputField from "@/components/InputField";
 
 const Profile = () => {
   const { user } = useUser();
-  const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [profileData, setProfileData] = useState({
     username: "",
@@ -76,22 +75,18 @@ const Profile = () => {
               <InputField
                 label="First Name"
                 value={profileData.first_name}
-                editable={isEditing}
               />
               <InputField
                 label="Last Name"
                 value={profileData.last_name}
-                editable={isEditing}
               />
               <InputField
                 label="Phone Number"
                 value={profileData.phone}
-                editable={isEditing}
               />
               <InputField
                 label="Email"
                 value={profileData.email}
-                editable={false}
               />
             </>
           )}

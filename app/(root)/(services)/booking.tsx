@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, Pressable, StyleSheet, Image, Alert, TextInput } from 'react-native';
 import { icons } from '@/constants';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +8,7 @@ import CustomButton from '@/components/CustomButton';
 import { Audio } from 'expo-av';
 import axios from 'axios';
 import RazorpayCheckout from 'react-native-razorpay';
+import { useUser } from "@clerk/clerk-expo";
 
 interface RecordingLine {
   sound: Audio.Sound;
@@ -15,65 +16,224 @@ interface RecordingLine {
   file: string;
 }
 
-const BACKEND_URL = 'http://192.168.1.2:8000/';
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
+interface FileObject {
+  uri: string;
+  type: string;
+  name: string;
 }
+
+interface BookingDetails {
+  amount: string;
+  options: string[];
+  description: string;
+  images: FileObject[];
+  recordings: FileObject[];
+  email: string;  // Add this line
+}
+
+const BACKEND_URL = 'http://192.168.1.2:8000/';
 
 export default function BookingPage() {
   const searchParams = useSearchParams();
   const totalAmount = searchParams.get('totalAmount') || '0';
   const selectedOptions = searchParams.get('selectedOptions') || '[]';
+  const { user } = useUser();
+  const [isLoading, setIsLoading] = useState(false);
+  const [profileData, setProfileData] = useState({
+    username: "",
+    first_name: "",
+    last_name: "",
+    email: user?.primaryEmailAddress?.emailAddress || "",
+    phone: "",
+  });
   const options: string[] = JSON.parse(selectedOptions);
 
   const [imageUris, setImageUris] = useState<string[]>([]);
   const [description, setDescription] = useState<string>('');
   const [recording, setRecording] = useState<Audio.Recording | undefined>();
   const [recordings, setRecordings] = useState<RecordingLine[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const initiatePayment = async () => {
+  const fetchUserDetails = async () => {
+    if (!profileData.email) return;
+
     setIsLoading(true);
     try {
-      // Create order
-      const orderResponse = await axios.post(`${BACKEND_URL}api/order/create/`, {
-        amount: parseInt(totalAmount) * 100, // Convert to paise
-        currency: 'INR'
+      const response = await fetch(`${BACKEND_URL}api/profile/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: profileData.email,
+        }),
       });
 
-      if (!orderResponse.data || !orderResponse.data.error || !orderResponse.data.error.id) {
-        Alert.alert('Error', 'Order ID not generated');
-        return;
-    }
-    
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch user details');
+      }
 
+      const data = await response.json();
+      setProfileData(prevData => ({
+        ...prevData,
+        ...data,
+      }));
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to fetch user details'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserDetails();
+  }, [profileData.email]);
+
+
+  // First, modify your handlePaymentSuccess function in booking.tsx:
+
+  const handlePaymentSuccess = async (paymentData: any) => {
+    try {
+      const formData = new FormData();
+      
+      // Add payment verification data
+      formData.append('razorpay_payment_id', paymentData.razorpay_payment_id);
+      formData.append('razorpay_order_id', paymentData.razorpay_order_id);
+      formData.append('razorpay_signature', paymentData.razorpay_signature);
+  
+      // Create booking_details object with proper typing
+      const bookingDetails: BookingDetails = {
+        amount: totalAmount,
+        options: options,
+        description: description,
+        images: [],
+        recordings: [],
+        email: profileData.email
+      };
+  
+      // Add images if any
+      if (imageUris.length > 0) {
+        const imageFiles: FileObject[] = imageUris.map((uri, index) => ({
+          uri,
+          type: 'image/jpeg',
+          name: `image-${index}.jpg`
+        }));
+        bookingDetails.images = imageFiles;
+        
+        // Append each image to formData
+        imageFiles.forEach((file) => {
+          formData.append('images', file as any);
+        });
+      }
+  
+      // Add recordings if any
+      if (recordings.length > 0) {
+        const audioFiles: FileObject[] = recordings.map((rec, index) => ({
+          uri: rec.file,
+          type: 'audio/m4a',
+          name: `recording-${index}.m4a`
+        }));
+        bookingDetails.recordings = audioFiles;
+        
+        // Append each recording to formData
+        audioFiles.forEach((file) => {
+          formData.append('recordings', file as any);
+        });
+      }
+  
+      // Append booking details as JSON string
+      formData.append('booking_details', JSON.stringify(bookingDetails));
+  
+      // Send data to backend
+      const response = await axios.post(
+        `${BACKEND_URL}api/order/complete/`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+  
+      if (response.status === 201) {
+        Alert.alert(
+          'Success', 
+          'Booking confirmed successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push('/servicess')
+            }
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('Transaction error:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to process booking'
+      );
+    }
+  };
+
+  const initiatePayment = async () => {
+    if (!profileData.email) {
+      Alert.alert('Error', 'Please complete your profile details first');
+      return;
+    }
+  
+    setIsLoading(true);
+    try {
+      // Add timeout to axios request
+      const orderResponse = await axios.post(
+        `${BACKEND_URL}api/order/create/`, 
+        {
+          amount: parseInt(totalAmount) * 100,
+          currency: 'INR'
+        },
+        {
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+  
+      if (!orderResponse.data?.data?.order_id) {
+        throw new Error('Invalid order response');
+      }
+  
       const options = {
         description: 'Credits towards consultation',
-            image: 'https://i.imgur.com/3g7nmJC.png',
-            currency: 'INR',
-            key: 'rzp_test_6DPEFbutV2mNls', // Your api key
-            order_id: orderResponse.data.error.id,
-            amount: parseInt(totalAmount) * 100 ,
-            name: 'Radbo Designs',
-            prefill: {
-              email: 'void@razorpay.com',
-              contact: '9191919191',
-              name: 'Radbo'
-            },
-            theme: {color: '#F37254'}
-          }
-          RazorpayCheckout.open(options).then((data) => {
-            // handle success
-            alert(`Success: ${data.razorpay_payment_id}`);
-          }).catch((error) => {
-            // handle failure
-            alert(`Error: ${error.code} | ${error.description}`);
-          });
-        }}
+        image: 'https://i.imgur.com/3g7nmJC.png',
+        currency: 'INR',
+        key: 'rzp_test_6DPEFbutV2mNls',
+        order_id: orderResponse.data.data.order_id,
+        amount: parseInt(totalAmount) * 100,
+        name: 'Radbo Designs',
+        prefill: {
+          email: profileData.email,
+          contact: profileData.phone,
+          name: profileData.first_name
+        },
+        theme: { color: '#F37254' }
       };
+  
+      const paymentData = await RazorpayCheckout.open(options);
+      await handlePaymentSuccess(paymentData);
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      Alert.alert(
+        'Payment Error',
+        error.response?.data?.message || 'Unable to initiate payment. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
   // Recording functions remain the same
