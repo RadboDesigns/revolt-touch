@@ -31,6 +31,14 @@ interface BookingDetails {
   email: string;  // Add this line
 }
 
+interface PaymentResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+
+
 const BACKEND_URL = 'http://192.168.1.2:8000/';
 
 export default function BookingPage() {
@@ -95,7 +103,7 @@ export default function BookingPage() {
 
   // First, modify your handlePaymentSuccess function in booking.tsx:
 
-  const handlePaymentSuccess = async (paymentData: any) => {
+  const handlePaymentSuccess = async (paymentData: PaymentResponse, bookingDetails: BookingDetails) => {
     try {
       const formData = new FormData();
       
@@ -104,78 +112,105 @@ export default function BookingPage() {
       formData.append('razorpay_order_id', paymentData.razorpay_order_id);
       formData.append('razorpay_signature', paymentData.razorpay_signature);
   
-      // Create booking_details object with proper typing
-      const bookingDetails: BookingDetails = {
-        amount: totalAmount,
-        options: options,
-        description: description,
-        images: [],
-        recordings: [],
-        email: profileData.email
+      // Process images if any
+      if (bookingDetails.images.length > 0) {
+        for (let i = 0; i < bookingDetails.images.length; i++) {
+          const image = bookingDetails.images[i];
+          // Add specific file extension and proper MIME type
+          const fileExtension = image.uri.split('.').pop() || 'jpg';
+          formData.append('images', {
+            uri: image.uri,
+            type: `image/${fileExtension}`,
+            name: `image-${i}.${fileExtension}`
+          } as any);
+        }
+      }
+  
+      // Process recordings if any
+      if (bookingDetails.recordings.length > 0) {
+        for (let i = 0; i < bookingDetails.recordings.length; i++) {
+          const recording = bookingDetails.recordings[i];
+          formData.append('recordings', {
+            uri: recording.uri,
+            type: 'audio/m4a',
+            name: `recording-${i}.m4a`
+          } as any);
+        }
+      }
+  
+      // Add booking details as JSON string
+      const bookingJSON = JSON.stringify({
+        amount: bookingDetails.amount,
+        options: bookingDetails.options,
+        description: bookingDetails.description,
+        email: bookingDetails.email
+      });
+      formData.append('booking_details', bookingJSON);
+  
+      // Configure axios request
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json',
+        },
+        timeout: 60000, // 60 second timeout
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        transformRequest: (data, _headers: Record<string, any>) => {
+          return data;
+        },
       };
   
-      // Add images if any
-      if (imageUris.length > 0) {
-        const imageFiles: FileObject[] = imageUris.map((uri, index) => ({
-          uri,
-          type: 'image/jpeg',
-          name: `image-${index}.jpg`
-        }));
-        bookingDetails.images = imageFiles;
-        
-        // Append each image to formData
-        imageFiles.forEach((file) => {
-          formData.append('images', file as any);
-        });
-      }
-  
-      // Add recordings if any
-      if (recordings.length > 0) {
-        const audioFiles: FileObject[] = recordings.map((rec, index) => ({
-          uri: rec.file,
-          type: 'audio/m4a',
-          name: `recording-${index}.m4a`
-        }));
-        bookingDetails.recordings = audioFiles;
-        
-        // Append each recording to formData
-        audioFiles.forEach((file) => {
-          formData.append('recordings', file as any);
-        });
-      }
-  
-      // Append booking details as JSON string
-      formData.append('booking_details', JSON.stringify(bookingDetails));
-  
-      // Send data to backend
-      const response = await axios.post(
-        `${BACKEND_URL}api/order/complete/`, 
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-  
-      if (response.status === 201) {
-        Alert.alert(
-          'Success', 
-          'Booking confirmed successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push('/servicess')
-            }
-          ]
+      // Send to backend with improved error handling
+      try {
+        const response = await axios.post(
+          `${BACKEND_URL}api/order/complete/`,
+          formData,
+          config
         );
+  
+        if (response.status === 201) {
+          Alert.alert(
+            'Success',
+            'Booking confirmed successfully!',
+            [{ text: 'OK', onPress: () => router.push('/orders') }]
+          );
+        } else {
+          throw new Error(`Unexpected response status: ${response.status}`);
+        }
+      } catch (axiosError) {
+        // Handle specific axios errors
+        if (axios.isAxiosError(axiosError)) {
+          let errorMessage = 'Failed to process booking';
+          
+          if (axiosError.code === 'ECONNABORTED') {
+            errorMessage = 'Request timed out. Please check your connection and try again.';
+          } else if (!axiosError.response) {
+            errorMessage = 'Unable to connect to server. Please check your internet connection.';
+          } else if (axiosError.response.status === 413) {
+            errorMessage = 'Files are too large. Please reduce file sizes and try again.';
+          } else {
+            errorMessage = axiosError.response?.data?.message || 
+                          'An unexpected error occurred while processing your booking.';
+          }
+          
+          // Log detailed error for debugging
+          console.error('Detailed error:', {
+            code: axiosError.code,
+            message: axiosError.message,
+            response: axiosError.response?.data,
+            status: axiosError.response?.status
+          });
+  
+          throw new Error(errorMessage);
+        }
+        throw axiosError; // Re-throw if it's not an axios error
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Transaction error:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.message || 'Failed to process booking'
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process booking';
+      Alert.alert('Error', errorMessage);
+      throw error; // Re-throw to allow retry logic to work
     }
   };
 
@@ -187,54 +222,145 @@ export default function BookingPage() {
   
     setIsLoading(true);
     try {
-      // Add timeout to axios request
-      const orderResponse = await axios.post(
-        `${BACKEND_URL}api/order/create/`, 
-        {
-          amount: parseInt(totalAmount) * 100,
-          currency: 'INR'
-        },
-        {
-          timeout: 10000, // 10 second timeout
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-  
-      if (!orderResponse.data?.data?.order_id) {
-        throw new Error('Invalid order response');
+      const amountInPaise = Math.round(parseFloat(totalAmount) * 100);
+      if (isNaN(amountInPaise) || amountInPaise <= 0) {
+        throw new Error('Invalid amount');
       }
   
-      const options = {
+      // Create order with enhanced retry logic and timeout handling
+      const maxRetries = 3;
+      let attempt = 0;
+      let orderResponse;
+  
+      while (attempt < maxRetries) {
+        try {
+          orderResponse = await axios.post(
+            `${BACKEND_URL}api/order/create/`,
+            {
+              amount: amountInPaise,
+              currency: 'INR'
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 60000, // Increased timeout to 60 seconds
+              validateStatus: (status) => status < 500, // Consider only 500+ errors for retry
+            }
+          );
+  
+          // Check if we got a successful response
+          if (orderResponse.status === 201) {
+            break;
+          }
+          throw new Error(`Server responded with status: ${orderResponse.status}`);
+        } catch (error) {
+          attempt++;
+          console.log(`Attempt ${attempt} failed:`, error);
+          
+          if (attempt === maxRetries) {
+            throw error;
+          }
+          
+          // Exponential backoff with a maximum of 5 seconds
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+  
+      if (!orderResponse?.data?.data?.order_id) {
+        throw new Error('Invalid order response from server');
+      }
+  
+      const bookingDetails: BookingDetails = {
+        amount: totalAmount,
+        options: options,
+        description: description,
+        images: imageUris.map(uri => ({
+          uri,
+          type: 'image/jpeg',
+          name: `image-${Date.now()}.jpg`
+        })),
+        recordings: recordings.map(rec => ({
+          uri: rec.file,
+          type: 'audio/m4a',
+          name: `recording-${Date.now()}.m4a`
+        })),
+        email: profileData.email
+      };
+  
+      const razorpayOptions = {
         description: 'Credits towards consultation',
         image: 'https://i.imgur.com/3g7nmJC.png',
         currency: 'INR',
         key: 'rzp_test_6DPEFbutV2mNls',
         order_id: orderResponse.data.data.order_id,
-        amount: parseInt(totalAmount) * 100,
+        amount: amountInPaise,
         name: 'Radbo Designs',
         prefill: {
           email: profileData.email,
-          contact: profileData.phone,
-          name: profileData.first_name
+          contact: profileData.phone || '',
+          name: profileData.first_name || ''
         },
-        theme: { color: '#F37254' }
+        theme: { color: '#F37254' },
+        retry: {
+          enabled: true,
+          max_count: 3
+        }
       };
   
-      const paymentData = await RazorpayCheckout.open(options);
-      await handlePaymentSuccess(paymentData);
-    } catch (error: any) {
-      console.error('Payment error:', error);
+      // Open Razorpay and wait for the response
+      const paymentData = await RazorpayCheckout.open(razorpayOptions);
+  
+      // If payment is successful, try to complete the order with retry logic
+      let completeOrderAttempt = 0;
+      while (completeOrderAttempt < maxRetries) {
+        try {
+          await handlePaymentSuccess(paymentData, bookingDetails);
+          break;
+        } catch (error) {
+          completeOrderAttempt++;
+          console.log(`Complete order attempt ${completeOrderAttempt} failed:`, error);
+          
+          if (completeOrderAttempt === maxRetries) {
+            // If all retries failed but payment was successful, show a special message
+            Alert.alert(
+              'Payment Successful',
+              'Your payment was successful but we had trouble confirming your booking. Please contact support with your payment ID: ' + paymentData.razorpay_payment_id,
+              [{ text: 'OK', onPress: () => router.push('/servicess') }]
+            );
+            return;
+          }
+          
+          const delay = Math.min(1000 * Math.pow(2, completeOrderAttempt), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+  
+    } catch (error) {
+      console.error('Payment initiation error:', error);
+      let errorMessage = 'Failed to initiate payment. Please try again.';
+      
+      if (axios.isAxiosError(error)) {
+        if (error.code === 'ECONNABORTED') {
+          errorMessage = 'The request timed out. Please check your internet connection and try again.';
+        } else if (!error.response) {
+          errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+        } else {
+          errorMessage = error.response.data?.message || 'An unexpected error occurred.';
+        }
+      }
+  
       Alert.alert(
         'Payment Error',
-        error.response?.data?.message || 'Unable to initiate payment. Please try again.'
+        errorMessage,
+        [{ text: 'OK' }],
+        { cancelable: false }
       );
     } finally {
       setIsLoading(false);
     }
   };
-
 
   // Recording functions remain the same
   async function startRecording() {
@@ -551,6 +677,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 64,
     backgroundColor: '#2D3748',
+
     borderRadius: 8,
     position: 'absolute',
     bottom: 10,
