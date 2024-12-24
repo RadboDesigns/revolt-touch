@@ -109,9 +109,9 @@ const OrderCard = ({ order, customStyles }) => {
             <CustomButton 
               title="View Image"
               onPress={() => router.push({
-                pathname: '/(root)/(orders)/yourDesign',
+                pathname: '/yourDesign',
                 params: {
-                  previewImage: order.preview_image,
+                  order_id: order.order_id,
                 },
               })} 
               className="mt-6 bg-secondary-200" 

@@ -173,7 +173,12 @@ export default function BookingPage() {
           Alert.alert(
             'Success',
             'Booking confirmed successfully!',
-            [{ text: 'OK', onPress: () => router.push('/orders') }]
+            [{ 
+              text: 'OK', 
+              onPress: () => router.push({
+                pathname: '/orders',
+                params: { order_id: paymentData.razorpay_order_id}
+              }) }]
           );
         } else {
           throw new Error(`Unexpected response status: ${response.status}`);
@@ -327,7 +332,12 @@ export default function BookingPage() {
             Alert.alert(
               'Payment Successful',
               'Your payment was successful but we had trouble confirming your booking. Please contact support with your payment ID: ' + paymentData.razorpay_payment_id,
-              [{ text: 'OK', onPress: () => router.push('/servicess') }]
+              [{ 
+                text: 'OK', 
+                onPress: () => router.push({
+                  pathname: '/orders',
+                  params: { order_id: paymentData.razorpay_order_id}
+                }) }]
             );
             return;
           }
