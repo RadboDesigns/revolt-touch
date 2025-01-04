@@ -26,6 +26,7 @@ const SignUp = () => {
     state: "default",
     error: "",
     code: "",
+    isSubmitting: false
   });
 
   const onSignUpPress = async () => {
@@ -63,6 +64,8 @@ const SignUp = () => {
       setVerification({
         ...verification,
         state: "pending",
+        isSubmitting: false,
+        error: ""
       });
   
       Alert.alert("Success", "Registration initiated. Please verify your email!");
@@ -73,8 +76,24 @@ const SignUp = () => {
   };
 
   const onPressVerify = async () => {
-    if (!isLoaded) return;
+    if (!isLoaded || verification.isSubmitting) return;
+    
+    // Validate OTP length
+    if (verification.code.length !== 6) {
+      setVerification({
+        ...verification,
+        error: "Please enter a valid 6-digit code",
+      });
+      return;
+    }
+
     try {
+      setVerification({
+        ...verification,
+        isSubmitting: true,
+        error: ""
+      });
+
       const completeSignUp = await signUp.attemptEmailAddressVerification({
         code: verification.code,
       });
@@ -84,6 +103,7 @@ const SignUp = () => {
         setVerification({
           ...verification,
           state: "success",
+          isSubmitting: false
         });
         setShowSuccessModal(true);
       } else {
@@ -91,6 +111,7 @@ const SignUp = () => {
           ...verification,
           error: "Verification failed. Please try again.",
           state: "failed",
+          isSubmitting: false
         });
       }
     } catch (err: any) {
@@ -98,6 +119,7 @@ const SignUp = () => {
         ...verification,
         error: err.errors?.[0]?.longMessage || "Verification failed",
         state: "failed",
+        isSubmitting: false
       });
     }
   };
@@ -113,11 +135,12 @@ const SignUp = () => {
       <InputField
         label="Code"
         icon={icons.lock}
-        placeholder="12345"
+        placeholder="Enter 6-digit code"
         value={verification.code}
         keyboardType="numeric"
+        maxLength={6}
         onChangeText={(code: string) =>
-          setVerification({ ...verification, code })
+          setVerification({ ...verification, code, error: "" })
         }
       />
       {verification.error && (
@@ -126,9 +149,10 @@ const SignUp = () => {
         </Text>
       )}
       <CustomButton
-        title="Verify Email"
+        title={verification.isSubmitting ? "Verifying..." : "Verify Email"}
         onPress={onPressVerify}
-        className="mt-5 bg-success-500"
+        disabled={verification.isSubmitting || verification.code.length !== 6}
+        className={`mt-5 ${verification.isSubmitting ? 'opacity-70' : ''} bg-success-500`}
       />
     </View>
   );
