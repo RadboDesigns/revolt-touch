@@ -1,6 +1,8 @@
-import { Image, View, Text, Pressable, Alert } from 'react-native';
+import { Image, View, Text, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from 'expo-router';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { icons } from '@/constants';
 import { useState, useEffect } from 'react';
 import CustomButton from '@/components/CustomButton';
@@ -9,9 +11,63 @@ const BASE_URL = 'http://192.168.1.4:8000';
 
 const YourDesign = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const params = useLocalSearchParams();
 
+  const handleDownload = async () => {
+    if (!previewImage) {
+      Alert.alert('Error', 'No image available to download');
+      return;
+    }
+
+    try {
+      // Request permissions first
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to save images');
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Generate a unique filename
+      const filename = `design_${Date.now()}.jpg`;
+      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+      // Download the image
+      const downloadResumable = FileSystem.createDownloadResumable(
+        previewImage,
+        fileUri,
+        {},
+        (downloadProgress) => {
+          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+          setDownloadProgress(progress);
+        }
+      );
+
+      const downloadResult = await downloadResumable.downloadAsync();
+      if (!downloadResult?.uri) {
+        throw new Error('Download failed - no URI received');
+      }
+
+      // Save to media library
+      if (Platform.OS === 'android') {
+        const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
+        await MediaLibrary.createAlbumAsync('YourDesigns', asset, false);
+      } else {
+        await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
+      }
+
+      Alert.alert('Success', 'Image saved successfully!');
+      setDownloadProgress(0);
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download image');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchPreviewImage = async (orderId: string) => {
     console.log('Starting fetchPreviewImage with orderId:', orderId);
@@ -36,7 +92,6 @@ const YourDesign = () => {
       }
       
       if (data.preview_image) {
-        // Construct full URL for the image
         const fullImageUrl = data.preview_image.startsWith('http') 
           ? data.preview_image 
           : `${BASE_URL}${data.preview_image}`;
@@ -55,19 +110,11 @@ const YourDesign = () => {
   };
 
   useEffect(() => {
-    console.log('useEffect triggered with params:', params); // Debug log
     if (params.order_id) {
       const orderId = Array.isArray(params.order_id) ? params.order_id[0] : params.order_id;
-      console.log('Parsed orderId:', orderId); // Debug log
       fetchPreviewImage(orderId);
-    } else {
-      console.log('No order_id in params'); // Debug log
     }
   }, [params.order_id]);
-
-  useEffect(() => {
-    console.log('Component mounted with params:', params);
-  }, []);
 
   return (
     <View className="flex-1 bg-black">
@@ -89,7 +136,11 @@ const YourDesign = () => {
         <View className="flex-1 p-4">
           {isLoading ? (
             <View className="flex-1 justify-center items-center">
-              <Text className="text-white">Loading...</Text>
+              <Text className="text-white">
+                {downloadProgress > 0 
+                  ? `Downloading... ${Math.round(downloadProgress * 100)}%`
+                  : 'Loading...'}
+              </Text>
             </View>
           ) : previewImage ? (
             <>
@@ -104,7 +155,7 @@ const YourDesign = () => {
               <View className="flex-row justify-center space-x-4 mb-8">
                 <CustomButton
                   title="Download"
-                  // onPress={handleDownload}
+                  onPress={handleDownload}
                   className="flex-1 bg-secondary-200"
                 />
                 <CustomButton
