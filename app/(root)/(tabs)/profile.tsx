@@ -20,7 +20,7 @@ const Profile = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.2:8000/api/profile/', {
+      const response = await fetch('http://192.168.1.4:8000/api/profile/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

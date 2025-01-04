@@ -159,7 +159,7 @@ const Chat = () => {
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.2:8000/api/order/show/', {
+      const response = await fetch('http://192.168.1.4:8000/api/order/show/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

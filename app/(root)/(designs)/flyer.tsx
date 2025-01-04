@@ -47,7 +47,7 @@ const SocialMedia = () => {
     setIsLoadingMore(page > 1); // Show loader for pagination
 
     try {
-      const response = await fetch(`http://192.168.1.2:8000/api/revo/flyer/?page=${page}&limit=${pageSize}`);
+      const response = await fetch(`http://192.168.1.4:8000/api/revo/flyer/?page=${page}&limit=${pageSize}`);
       const result = await response.json();
 
       // If no more data, stop further loading

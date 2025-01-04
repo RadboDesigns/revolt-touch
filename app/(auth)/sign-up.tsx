@@ -39,7 +39,7 @@ const SignUp = () => {
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
   
       // Send data to the Django backend
-      const response = await fetch("http://192.168.1.2:8000/api/register/", {
+      const response = await fetch("http://192.168.1.4:8000/api/register/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,7 +119,7 @@ const SignUp = () => {
         </View>
         <View className="p-5">
           <InputField
-            label="First Name"
+            label="First Name / Username"
             placeholder="Enter name"
             icon={icons.person}
             value={form.first_name}
@@ -150,7 +150,7 @@ const SignUp = () => {
             onChangeText={(value: string) => setForm({ ...form, phone_number: value })}
           />
           <InputField
-            label="Password"
+            label="Create Password"
             placeholder="Enter password"
             icon={icons.lock}
             secureTextEntry={true}

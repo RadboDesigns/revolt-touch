@@ -12,7 +12,7 @@ interface RecordingLine {
   file: string;
 }
 
-const BACKEND_URL = 'http://192.168.1.2:8000/';
+const BACKEND_URL = 'http://192.168.4.4:8000/';
 
 const Update = () => {
   const params = useLocalSearchParams();

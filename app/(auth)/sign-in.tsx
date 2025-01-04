@@ -30,7 +30,7 @@ const SignIn = () => {
         await setActive({ session: signInAttempt.createdSessionId });
   
         // Send the email to the backend to fetch user details
-        const response = await fetch("http://192.168.1.2:8000/api/sign_in/", {
+        const response = await fetch("http://192.168.1.4:8000/api/sign_in/", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

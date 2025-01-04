@@ -5,7 +5,7 @@ import { icons } from '@/constants';
 import { useState, useEffect } from 'react';
 import CustomButton from '@/components/CustomButton';
 
-const BASE_URL = 'http://192.168.1.2:8000';
+const BASE_URL = 'http://192.168.1.4:8000';
 
 const YourDesign = () => {
   const [isLoading, setIsLoading] = useState(false);

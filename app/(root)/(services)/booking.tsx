@@ -39,7 +39,7 @@ interface PaymentResponse {
 
 
 
-const BACKEND_URL = 'http://192.168.1.2:8000/';
+const BACKEND_URL = 'http://192.168.1.4:8000/';
 
 export default function BookingPage() {
   const searchParams = useSearchParams();

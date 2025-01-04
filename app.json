@@ -48,6 +48,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://revolt-touch.com/"
+      },
+      "eas": {
+        "projectId": "dd5644c1-9f1a-4c0e-8449-ce0b75848178"
+      }
     }
   }
 }
