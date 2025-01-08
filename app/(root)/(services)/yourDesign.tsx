@@ -14,6 +14,7 @@ const YourDesign = () => {
   const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const params = useLocalSearchParams();
+  const orderId = Array.isArray(params.order_id) ? params.order_id[0] : params.order_id;
 
   const handleDownload = async () => {
     if (!previewImage) {
@@ -54,7 +55,7 @@ const YourDesign = () => {
       // Save to media library
       if (Platform.OS === 'android') {
         const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
-        await MediaLibrary.createAlbumAsync('YourDesigns', asset, false);
+        await MediaLibrary.createAlbumAsync('Radbo Designs', asset, false);
       } else {
         await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
       }
@@ -110,11 +111,25 @@ const YourDesign = () => {
   };
 
   useEffect(() => {
-    if (params.order_id) {
-      const orderId = Array.isArray(params.order_id) ? params.order_id[0] : params.order_id;
+    if (orderId) {
       fetchPreviewImage(orderId);
     }
-  }, [params.order_id]);
+  }, [orderId]);
+
+  const handleUpdate = () => {
+    if (!orderId) {
+      Alert.alert('Error', 'Order ID is missing');
+      return;
+    }
+    
+    router.push({
+      pathname: '/update',
+      params: { 
+        previewImage, 
+        orderId: orderId 
+      }
+    });
+  };
 
   return (
     <View className="flex-1 bg-black">
@@ -160,10 +175,7 @@ const YourDesign = () => {
                 />
                 <CustomButton
                   title="Update"
-                  onPress={() => router.push({
-                    pathname: '/update',
-                    params: { previewImage },
-                  })}
+                  onPress={handleUpdate}
                   className="flex-1 bg-secondary-200"
                 />
               </View>

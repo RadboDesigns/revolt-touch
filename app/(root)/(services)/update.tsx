@@ -1,4 +1,4 @@
-import { Image, ScrollView, Text, View, Pressable, StyleSheet, TextInput } from "react-native";
+import { Image, ScrollView, Text, View, Pressable, StyleSheet, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Audio } from 'expo-av';
 import { icons } from "@/constants";
@@ -12,14 +12,85 @@ interface RecordingLine {
   file: string;
 }
 
-const BACKEND_URL = 'http://192.168.4.4:8000/';
+const BACKEND_URL = 'http://192.168.1.4:8000/';
 
 const Update = () => {
   const params = useLocalSearchParams();
   const previewImage = params.previewImage as string;
+  const orderId = params.orderId as string; // Make sure to pass orderId in your navigation
   const [recording, setRecording] = useState<Audio.Recording | undefined>();
   const [recordings, setRecordings] = useState<RecordingLine[]>([]);
   const [description, setDescription] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    if (!description.trim()) {
+      Alert.alert('Error', 'Please enter a description');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('order_id', orderId);
+      formData.append('description', description.trim());
+
+      // Add voice messages if any
+      if (recordings.length > 0) {
+        // Get the last recording (most recent one)
+        const lastRecording = recordings[recordings.length - 1];
+        const uri = lastRecording.file;
+        
+        // Create file name from URI
+        const uriParts = uri.split('/');
+        const fileName = uriParts[uriParts.length - 1];
+
+        formData.append('voice_messages', {
+          uri: uri,
+          name: fileName,
+          type: 'audio/m4a' // or the appropriate mime type
+        } as any);
+      }
+
+      const response = await fetch(`${BACKEND_URL}api/order/submit-update/`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit update');
+      }
+
+      Alert.alert(
+        'Success',
+        'Update submitted successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back()
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Submit error:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Failed to submit update'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
 
   // Voice recording functions
   async function startRecording() {
@@ -88,6 +159,7 @@ const Update = () => {
   function clearRecordings() {
     setRecordings([]);
   }
+  
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -137,7 +209,7 @@ const Update = () => {
             onPress={recording ? stopRecording : startRecording}
           >
             <Text style={styles.buttonText}>
-              {recording ? 'Stop Recording' : 'Start Recording'}
+              {recording ? 'Stop' : 'Start Recording'}
             </Text>
           </Pressable>
           {getRecordingLines()}
@@ -154,12 +226,10 @@ const Update = () => {
         {/* Submit Button */}
         <View style={styles.section}>
           <CustomButton 
-            title="Submit Update"
-            onPress={() => {
-              // Handle submission logic here
-              console.log('Update submitted:', { description, recordings, previewImage });
-            }}
-            className="mt-6 bg-secondary-200"
+            title={isSubmitting ? "Submitting..." : "Submit Update"}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+            className={`mt-6 bg-secondary-200 ${isSubmitting ? 'opacity-70' : ''}`}
           />
         </View>
       </ScrollView>

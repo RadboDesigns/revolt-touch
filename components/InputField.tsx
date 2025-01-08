@@ -19,6 +19,7 @@ const InputField = ({
   inputStyle,
   iconStyle,
   className,
+  editable = true,
   ...props
 }: InputFieldProps) => {
   return (
@@ -29,7 +30,9 @@ const InputField = ({
             {label}
           </Text>
           <View
-            className={`flex flex-row justify-start items-center relative rounded-lg border-white-300 border-2 bg-white-200 ${containerStyle}`}
+            className={`flex flex-row justify-start items-center relative rounded-lg border-white-300 border-2 bg-white-200 ${
+              !editable ? 'opacity-50' : ''
+            } ${containerStyle}`}
           >
             {icon && (
               <Image
@@ -40,6 +43,7 @@ const InputField = ({
             <TextInput
               className={`rounded-full p-4 font-pregular text-[15px] flex-1 ${inputStyle}`}
               secureTextEntry={secureTextEntry}
+              editable={editable}
               {...props}
             />
           </View>
