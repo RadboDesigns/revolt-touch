@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { BottomSheet } from "react-native-btr";
 import { images } from "@/constants";
+import { BACKEND_URL, API_CONFIG } from "@/config/DjangoConfig";
 
 interface ImageData {
   id: string;
@@ -47,7 +48,8 @@ const SocialMedia = () => {
     setIsLoadingMore(page > 1); // Show loader for pagination
 
     try {
-      const response = await fetch(`http://192.168.1.4:8000/api/revo/invitation/?page=${page}&limit=${pageSize}`);
+      const url = `${BACKEND_URL}${API_CONFIG.ENDPOINTS.INVITATION}?page=${page}&limit=${pageSize}`;
+      const response = await fetch(url);
       const result = await response.json();
 
       // If no more data, stop further loading

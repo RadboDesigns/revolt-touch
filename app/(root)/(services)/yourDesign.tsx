@@ -6,8 +6,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { icons } from '@/constants';
 import { useState, useEffect } from 'react';
 import CustomButton from '@/components/CustomButton';
-
-const BASE_URL = 'http://192.168.1.4:8000';
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
 
 const YourDesign = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +74,7 @@ const YourDesign = () => {
 
     setIsLoading(true);
     try {
-      const apiUrl = `${BASE_URL}/api/order/preview_image/`;
+      const apiUrl = `${BACKEND_URL}${API_CONFIG.ENDPOINTS.PREVIEW_IMAGE}`;
       const requestBody = { order_id: orderId };
       
       const response = await fetch(apiUrl, {
@@ -95,7 +94,7 @@ const YourDesign = () => {
       if (data.preview_image) {
         const fullImageUrl = data.preview_image.startsWith('http') 
           ? data.preview_image 
-          : `${BASE_URL}${data.preview_image}`;
+          : `${BACKEND_URL}${data.preview_image}`;
         console.log('Full image URL:', fullImageUrl);
         setPreviewImage(fullImageUrl);
       } else {

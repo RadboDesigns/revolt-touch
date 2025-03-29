@@ -13,8 +13,8 @@ module.exports = {
           300: "#000",
         },
         secondary: {
-          100: "#6C5700",
-          200: "#FFCE07",
+          100: "#BFEF8F66",
+          200: "#BFEF8F",
         },
         white: {
           100: "#F1F1F1",
@@ -23,7 +23,7 @@ module.exports = {
         },
         success: {
           100: "#F0FFF4",
-          200: "#FFCE07",
+          200: "#BFEF8F",
         },
         danger: {
           100: "#FFF5F5",

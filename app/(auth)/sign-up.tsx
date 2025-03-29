@@ -8,6 +8,8 @@ import { KeyboardAvoidingView, Platform } from "react-native";
 import CustomButton from "@/components/CustomButton";
 import InputField from "@/components/InputField";
 import { icons, images } from "@/constants";
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
+
 
 const SignUp = () => {
   const { isLoaded, signUp, setActive } = useSignUp();
@@ -51,7 +53,7 @@ const SignUp = () => {
       }
 
       // Then register in backend
-      const response = await fetch("http://192.168.1.4:8000/api/register/", {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.REGISTER}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

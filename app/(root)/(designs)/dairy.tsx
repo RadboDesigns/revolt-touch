@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { BottomSheet } from "react-native-btr";
 import { images } from "@/constants";
+import { BACKEND_URL, API_CONFIG } from "@/config/DjangoConfig";
+
 
 interface ImageData {
   id: string;
@@ -44,10 +46,11 @@ const SocialMedia = () => {
 
     const pageSize = 10; // Number of items per page
     if (page === 1) setIsLoading(true); // Show loader for the first load
-    setIsLoadingMore(page > 1); // Show loader for pagination
+    setIsLoadingMore(page > 1); // Show loader for paginationREVO_SOCIAL
 
     try {
-      const response = await fetch(`http://192.168.1.4:8000/api/revo/dairy/?page=${page}&limit=${pageSize}`);
+      const url = `${BACKEND_URL}${API_CONFIG.ENDPOINTS.DAIRY}?page=${page}&limit=${pageSize}`;
+      const response = await fetch(url);
       const result = await response.json();
 
       // If no more data, stop further loading

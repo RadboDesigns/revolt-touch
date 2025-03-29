@@ -5,6 +5,7 @@ import { icons } from "@/constants";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import CustomButton from '@/components/CustomButton';
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
 
 interface RecordingLine {
   sound: Audio.Sound;
@@ -12,7 +13,6 @@ interface RecordingLine {
   file: string;
 }
 
-const BACKEND_URL = 'http://192.168.1.4:8000/';
 
 const Update = () => {
   const params = useLocalSearchParams();
@@ -54,7 +54,7 @@ const Update = () => {
         } as any);
       }
 
-      const response = await fetch(`${BACKEND_URL}api/order/submit-update/`, {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.SCHEMESS_UPDATE}`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

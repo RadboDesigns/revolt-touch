@@ -1,10 +1,13 @@
 import { icons } from '@/constants';
-import { SafeAreaView, Text, View, Image, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView, Text, View, Image, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useUser } from "@clerk/clerk-expo";
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { ImageSourcePropType } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
+
 
 // Type definitions
 interface Banner {
@@ -32,8 +35,8 @@ const banners: Banner[] = [
   { id: 1, image: require('@/assets/images/banner1.png') },
   { id: 2, image: require('@/assets/images/banner1.png') },
   { id: 3, image: require('@/assets/images/banner1.png') },
-  { id: 3, image: require('@/assets/images/banner1.png') },
-  { id: 3, image: require('@/assets/images/banner1.png') },
+  { id: 4, image: require('@/assets/images/banner1.png') },
+  { id: 5, image: require('@/assets/images/banner1.png') },
 ];
 
 const services: Service[] = [
@@ -67,10 +70,11 @@ const SectionTitle: React.FC<SectionTitleProps> = ({ title }) => (
 );
 
 export default function Page() {
-  const { user } = useUser();
+  const { user, signOut } = useUser();
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [profileData, setProfileData] = useState({
     username: "",
     first_name: "",
@@ -84,7 +88,7 @@ export default function Page() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.4:8000/api/profile/', {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.PROFILE}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,24 +122,82 @@ export default function Page() {
     fetchUserDetails();
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      // Clear AsyncStorage data
+      await AsyncStorage.clear();
+      
+      // Sign out from Clerk
+      await signOut();
+      
+      // Navigate to sign-in screen
+      router.replace('/(auth)/sign-in');
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        'Failed to log out. Please try again.'
+      );
+    }
+  };
   
-const HeaderSection: React.FC = () => (
-  <View className="flex flex-row justify-between items-center px-5 mt-10">
-    <View>
-      <Text className="text-left text-3xl font-pregular text-white-100">
-        Hi, <Text className="text-secondary-200">{profileData.username || 'User'}</Text>
-      </Text>
-      <Text className="text-left text-sm font-pregular text-white-200">
-        Ready to elevate your brand? Let's get started!
-      </Text>
+  const HeaderSection: React.FC = () => (
+    <View className="flex flex-row justify-between items-center px-5 mt-10">
+      <View>
+        <Text className="text-left text-3xl font-pregular text-white-100">
+          Hi, <Text className="text-secondary-200">{profileData.username || 'User'}</Text>
+        </Text>
+        <Text className="text-left text-sm font-pregular text-white-200">
+          Ready to elevate your brand? Let's get started!
+        </Text>
+      </View>
+      <TouchableOpacity onPress={() => setShowProfileMenu(!showProfileMenu)}>
+        <Image
+          source={user?.imageUrl ? { uri: user.imageUrl } : icons.person}
+          className="h-12 w-12 border-2 border-primary-100 rounded-full"
+        />
+      </TouchableOpacity>
     </View>
-    <Image
-      source={user?.imageUrl ? { uri: user.imageUrl } : icons.person}
-      className="h-12 w-12 border-2 border-primary-100 rounded-full"
-    />
-  </View>
-);
+  );
   
+  // Profile Menu Dropdown
+  const ProfileMenu = () => (
+    <Modal
+      visible={showProfileMenu}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowProfileMenu(false)}
+    >
+      <TouchableOpacity 
+        style={{ flex: 1 }}
+        activeOpacity={1} 
+        onPress={() => setShowProfileMenu(false)}
+      >
+        <View className="absolute top-24 right-5 bg-primary-100 rounded-lg p-2 shadow-lg z-50">
+          <TouchableOpacity 
+            className="flex-row items-center px-4 py-3 border-b border-white-300"
+            onPress={() => {
+              setShowProfileMenu(false);
+              router.push('/profile');
+            }}
+          >
+            <Image source={icons.person} className="w-5 h-5 mr-2" />
+            <Text className="text-white-100">Profile</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            className="flex-row items-center px-4 py-3"
+            onPress={() => {
+              setShowProfileMenu(false);
+              handleLogout();
+            }}
+          >
+            <Image source={icons.logout || icons.person} className="w-5 h-5 mr-2" />
+            <Text className="text-white-100">Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
 
   const handleServicePress = (route: string) => {
     router.push(route as any);
@@ -156,7 +218,7 @@ const HeaderSection: React.FC = () => (
           <Text className="text-white-200 font-psemibold text-sm text-left">
             {item.text}
           </Text>
-          <Image source={item.icon} className="w-8 h-8 "  resizeMode="contain" />
+          <Image source={item.icon} className="w-8 h-8" resizeMode="contain" />
         </View>
       </BlurView>
     </TouchableOpacity>
@@ -168,7 +230,7 @@ const HeaderSection: React.FC = () => (
       className="flex-1 items-center justify-center p-2"
     >
       <View className="bg-primary-300 rounded-full p-5 overflow-visible">
-        <Image source={item.icon} className="w-8 h-8 "/>
+        <Image source={item.icon} className="w-8 h-8" />
       </View>
       <Text className="text-white-200 font-pregular mt-2 text-sm">{item.name}</Text>
     </TouchableOpacity>
@@ -191,7 +253,7 @@ const HeaderSection: React.FC = () => (
       <FlatList
         ListHeaderComponent={
           <>
-            <HeaderSection user={user} />
+            <HeaderSection />
             {/* Banner Scroller */}
             <View className="mt-10 bg-black">
               <FlatList
@@ -235,61 +297,59 @@ const HeaderSection: React.FC = () => (
               </View>
             </View>
   
-{/* Recent Works Section */}
-<View className="mt-10">
-  <SectionTitle title="Our Recent Works" />
-  <FlatList
-    data={banners}
-    horizontal
-    showsHorizontalScrollIndicator={false}
-    keyExtractor={(item) => item.id.toString()}
-    renderItem={({ item, index }) => (
-      <View
-        style={{
-          width: 173, // Full image width
-          height: 172,
-          marginLeft: index === 0 ? 10 : 20, // Add gap between items
-        }}
-      >
-        <Image
-          source={item.image}
-          style={{
-            width: '100%',
-            height: '100%',
-            borderRadius: 8,
-            resizeMode: 'cover',
-          }}
-        />
-      </View>
-    )}
-    contentContainerStyle={{
-      paddingHorizontal: 10, // Padding for the entire list
-    }}
-    snapToAlignment="start" // Ensure images snap into place
-    decelerationRate="fast"
-    snapToInterval={173 + 20} // Adjust for image width + gap
-  />
-</View>
+            {/* Recent Works Section */}
+            <View className="mt-10">
+              <SectionTitle title="Our Recent Works" />
+              <FlatList
+                data={banners}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item, index }) => (
+                  <View
+                    style={{
+                      width: 173, // Full image width
+                      height: 172,
+                      marginLeft: index === 0 ? 10 : 20, // Add gap between items
+                    }}
+                  >
+                    <Image
+                      source={item.image}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 8,
+                        resizeMode: 'cover',
+                      }}
+                    />
+                  </View>
+                )}
+                contentContainerStyle={{
+                  paddingHorizontal: 10, // Padding for the entire list
+                }}
+                snapToAlignment="start" // Ensure images snap into place
+                decelerationRate="fast"
+                snapToInterval={173 + 20} // Adjust for image width + gap
+              />
+            </View>
 
             {/* Note Section */}
-    <View className="mt-10 mx-5 border-[1px] border-white-300 rounded-lg p-4">
-      <Text className="text-center text-secondary-200 text-lg underline font-pregular">
-        Note
-      </Text>
-      <Text className="mt-2 text-center text-white-100 font-pregular">
-        All Services will commence only After payment is received
-      </Text>
-    </View>
+            <View className="mt-10 mx-5 border-[1px] border-white-300 rounded-lg p-4">
+              <Text className="text-center text-secondary-200 text-lg underline font-pregular">
+                Note
+              </Text>
+              <Text className="mt-2 text-center text-white-100 font-pregular">
+                All Services will commence only After payment is received
+              </Text>
+            </View>
   
             <View className="h-40" />
-
-            
           </>
         }
       />
+      
+      {/* Profile Menu Modal */}
+      <ProfileMenu />
     </SafeAreaView>
   );
-  
 }
-
-

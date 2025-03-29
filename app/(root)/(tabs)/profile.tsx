@@ -3,6 +3,8 @@ import { Image, ScrollView, Text, View, Alert, TouchableOpacity } from "react-na
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useEffect } from "react";
 import InputField from "@/components/InputField";
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
+
 
 const Profile = () => {
   const { user } = useUser();
@@ -22,7 +24,7 @@ const Profile = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.4:8000/api/profile/', {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.PROFILE}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -55,7 +57,7 @@ const Profile = () => {
   const handleUpdateProfile = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.4:8000/api/profile/', {
+      const response = await fetch('http://192.168.1.2:8000/api/profile/', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -7,6 +7,7 @@ import InputField from "@/components/InputField";
 import CustomButton from "@/components/CustomButton";
 import { useSignIn } from "@clerk/clerk-expo";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
 
 const SignIn = () => {
   const { signIn, setActive, isLoaded } = useSignIn();
@@ -21,16 +22,18 @@ const SignIn = () => {
     if (!isLoaded) return;
   
     try {
+      // Step 1: Authenticate with Clerk
       const signInAttempt = await signIn.create({
         identifier: form.email,
         password: form.password,
       });
   
       if (signInAttempt.status === "complete") {
+        // Step 2: Set the active session with Clerk
         await setActive({ session: signInAttempt.createdSessionId });
   
-        // Send the email to the backend to fetch user details
-        const response = await fetch("http://192.168.1.4:8000/api/sign_in/", {
+        // Step 3: Fetch user details from the backend
+        const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.LOGIN}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -42,19 +45,23 @@ const SignIn = () => {
   
         const data = await response.json();
   
+        // Step 4: Check if the backend response is successful
         if (response.ok) {
-          // Store user details (name and email)
+          // Step 5: Store user details in AsyncStorage
           await AsyncStorage.setItem("user", JSON.stringify(data));
   
-          // Navigate to the home screen
+          // Step 6: Redirect to the home screen only after successful backend call
           router.replace("/(root)/(tabs)/home");
         } else {
+          // Handle backend errors
           Alert.alert("Error", data.detail || "Sign-in failed.");
         }
       } else {
+        // Handle incomplete sign-in attempts
         Alert.alert("Error", "Log in failed. Please try again.");
       }
     } catch (err: any) {
+      // Handle any unexpected errors
       console.error(err);
       Alert.alert("Error", err.errors?.[0]?.longMessage || "Something went wrong.");
     }

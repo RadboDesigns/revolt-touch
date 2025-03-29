@@ -6,6 +6,8 @@ import StepIndicator from 'react-native-step-indicator';
 import { useState, useEffect } from 'react';
 import { useUser } from "@clerk/clerk-expo";
 import CustomButton from '@/components/CustomButton';
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
+
 
 const OrderCard = ({ order, customStyles }) => {
   // Map backend status to step indicator position
@@ -159,7 +161,7 @@ const Chat = () => {
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://192.168.1.4:8000/api/order/show/', {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.ORDER_SHOW}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -9,6 +9,8 @@ import { Audio } from 'expo-av';
 import axios from 'axios';
 import RazorpayCheckout from 'react-native-razorpay';
 import { useUser } from "@clerk/clerk-expo";
+import { BACKEND_URL, API_CONFIG } from '@/config/DjangoConfig';
+
 
 interface RecordingLine {
   sound: Audio.Sound;
@@ -39,8 +41,6 @@ interface PaymentResponse {
 
 
 
-const BACKEND_URL = 'http://192.168.1.4:8000/';
-
 export default function BookingPage() {
   const searchParams = useSearchParams();
   const totalAmount = searchParams.get('totalAmount') || '0';
@@ -66,7 +66,7 @@ export default function BookingPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${BACKEND_URL}api/profile/`, {
+      const response = await fetch(`${BACKEND_URL}${API_CONFIG.ENDPOINTS.PROFILE}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
